@@ -1,0 +1,10 @@
+# Stored as *.fixture so GitHub's dependency graph ignores this vulnerable lock.
+# The fixed exclude-newer date keeps every urllib3 1.26.4 fix "inside the cooldown".
+[project]
+name = "cooldown-fixture"
+version = "0"
+requires-python = ">=3.9"
+dependencies = ["urllib3>=1.26"]
+
+[tool.uv]
+exclude-newer = "2021-05-01T00:00:00Z"

@@ -1,0 +1,459 @@
+{
+  "schema": {
+    "version": "preview"
+  },
+  "summary": {
+    "audited_packages": 1,
+    "vulnerabilities": 22,
+    "adverse_statuses": 0
+  },
+  "vulnerabilities": [
+    {
+      "dependency": {
+        "name": "urllib3",
+        "version": "1.26.4"
+      },
+      "id": "PYSEC-2021-108",
+      "display_id": "PYSEC-2021-108",
+      "aliases": [
+        "CVE-2021-33503",
+        "GHSA-q2q7-5pp4-w6pg"
+      ],
+      "summary": null,
+      "description": "An issue was discovered in urllib3 before 1.26.5. When provided with a URL containing many @ characters in the authority [trimmed]",
+      "link": "https://github.com/advisories/GHSA-q2q7-5pp4-w6pg",
+      "fix_versions": [
+        "1.26.5"
+      ],
+      "published": "2021-06-29T11:15:00Z",
+      "modified": "2026-10-13T09:30:02.842062535Z"
+    },
+    {
+      "dependency": {
+        "name": "urllib3",
+        "version": "1.26.4"
+      },
+      "id": "GHSA-q2q7-5pp4-w6pg",
+      "display_id": "PYSEC-2021-108",
+      "aliases": [
+        "CVE-2021-33503",
+        "PYSEC-2021-108"
+      ],
+      "summary": "Catastrophic backtracking in URL authority parser when passed URL containing many @ characters",
+      "description": "### Impact\n\nWhen provided with a URL containing many `@` characters in the authority component the authority regular exp [trimmed]",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2021-33503",
+      "fix_versions": [
+        "1.26.5"
+      ],
+      "published": "2021-06-01T21:19:32Z",
+      "modified": "2026-07-08T06:00:54.21743374Z"
+    },
+    {
+      "dependency": {
+        "name": "urllib3",
+        "version": "1.26.4"
+      },
+      "id": "PYSEC-2023-192",
+      "display_id": "PYSEC-2023-192",
+      "aliases": [
+        "CVE-2023-43804",
+        "GHSA-v845-jxx5-vc9f"
+      ],
+      "summary": null,
+      "description": "urllib3 is a user-friendly HTTP client library for Python. urllib3 doesn't treat the `Cookie` HTTP header special or pro [trimmed]",
+      "link": "https://github.com/urllib3/urllib3/security/advisories/GHSA-v845-jxx5-vc9f",
+      "fix_versions": [
+        "2.0.6",
+        "1.26.17"
+      ],
+      "published": "2023-10-04T17:15:00Z",
+      "modified": "2023-11-08T04:13:33.452167Z"
+    },
+    {
+      "dependency": {
+        "name": "urllib3",
+        "version": "1.26.4"
+      },
+      "id": "GHSA-v845-jxx5-vc9f",
+      "display_id": "PYSEC-2023-192",
+      "aliases": [
+        "CVE-2023-43804",
+        "PYSEC-2023-192"
+      ],
+      "summary": "`Cookie` HTTP header isn't stripped on cross-origin redirects",
+      "description": "urllib3 doesn't treat the `Cookie` HTTP header special or provide any helpers for managing cookies over HTTP, that is th [trimmed]",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2023-43804",
+      "fix_versions": [
+        "2.0.6",
+        "1.26.17"
+      ],
+      "published": "2023-10-02T23:27:05Z",
+      "modified": "2026-09-10T03:49:24.753610811Z"
+    },
+    {
+      "dependency": {
+        "name": "urllib3",
+        "version": "1.26.4"
+      },
+      "id": "PYSEC-2023-212",
+      "display_id": "PYSEC-2023-212",
+      "aliases": [
+        "CVE-2023-45803",
+        "GHSA-g4mx-q9vg-27p4"
+      ],
+      "summary": null,
+      "description": "urllib3 is a user-friendly HTTP client library for Python. urllib3 previously wouldn't remove the HTTP request body when [trimmed]",
+      "link": "https://github.com/urllib3/urllib3/security/advisories/GHSA-g4mx-q9vg-27p4",
+      "fix_versions": [
+        "2.0.7",
+        "1.26.18"
+      ],
+      "published": "2023-10-17T20:15:00Z",
+      "modified": "2023-11-08T04:13:39.16545Z"
+    },
+    {
+      "dependency": {
+        "name": "urllib3",
+        "version": "1.26.4"
+      },
+      "id": "GHSA-g4mx-q9vg-27p4",
+      "display_id": "PYSEC-2023-212",
+      "aliases": [
+        "CVE-2023-45803",
+        "PYSEC-2023-212"
+      ],
+      "summary": "urllib3's request body not stripped after redirect from 303 status changes request method to GET",
+      "description": "urllib3 previously wouldn't remove the HTTP request body when an HTTP redirect response using status 303 \"See Other\" aft [trimmed]",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2023-45803",
+      "fix_versions": [
+        "2.0.7",
+        "1.26.18"
+      ],
+      "published": "2023-10-17T20:15:25Z",
+      "modified": "2026-09-10T03:50:03.70688941Z"
+    },
+    {
+      "dependency": {
+        "name": "urllib3",
+        "version": "1.26.4"
+      },
+      "id": "GHSA-qccp-gfcp-xxvc",
+      "display_id": "PYSEC-2026-141",
+      "aliases": [
+        "CVE-2026-44431",
+        "PYSEC-2026-141"
+      ],
+      "summary": "urllib3: Sensitive headers forwarded across origins in proxied low-level redirects",
+      "description": "### Impact\n\nWhen following cross-origin redirects for requests made using urllib3\u2019s high-level APIs, such as `urllib3.re [trimmed]",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2026-44431",
+      "fix_versions": [
+        "2.7.0"
+      ],
+      "published": "2026-05-11T14:51:20Z",
+      "modified": "2026-09-10T03:50:47.27276564Z"
+    },
+    {
+      "dependency": {
+        "name": "urllib3",
+        "version": "1.26.4"
+      },
+      "id": "PYSEC-2026-141",
+      "display_id": "PYSEC-2026-141",
+      "aliases": [
+        "CVE-2026-44431",
+        "GHSA-qccp-gfcp-xxvc"
+      ],
+      "summary": null,
+      "description": "urllib3 is an HTTP client library for Python. From 1.23 to before 2.7.0, cross-origin redirects followed from the low-le [trimmed]",
+      "link": "https://github.com/urllib3/urllib3/security/advisories/GHSA-qccp-gfcp-xxvc",
+      "fix_versions": [
+        "2.7.0"
+      ],
+      "published": "2026-05-13T16:16:57.15Z",
+      "modified": "2026-05-20T09:19:20.983812Z"
+    },
+    {
+      "dependency": {
+        "name": "urllib3",
+        "version": "1.26.4"
+      },
+      "id": "GHSA-2xpw-w6gg-jr37",
+      "display_id": "PYSEC-2026-1994",
+      "aliases": [
+        "CVE-2025-66471",
+        "PYSEC-2026-1994"
+      ],
+      "summary": "urllib3 streaming API improperly handles highly compressed data",
+      "description": "### Impact\n\nurllib3's [streaming API](https://urllib3.readthedocs.io/en/2.5.0/advanced-usage.html#streaming-and-i-o) is  [trimmed]",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2025-66471",
+      "fix_versions": [
+        "2.6.0"
+      ],
+      "published": "2025-12-05T18:15:54Z",
+      "modified": "2026-09-25T17:15:05.968189421Z"
+    },
+    {
+      "dependency": {
+        "name": "urllib3",
+        "version": "1.26.4"
+      },
+      "id": "PYSEC-2026-1994",
+      "display_id": "PYSEC-2026-1994",
+      "aliases": [
+        "CVE-2025-66471",
+        "GHSA-2xpw-w6gg-jr37"
+      ],
+      "summary": "urllib3 streaming API improperly handles highly compressed data",
+      "description": "### Impact\n\nurllib3's [streaming API](https://urllib3.readthedocs.io/en/2.5.0/advanced-usage.html#streaming-and-i-o) is  [trimmed]",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2025-66471",
+      "fix_versions": [
+        "2.6.0"
+      ],
+      "published": "2026-07-07T16:03:12.332335Z",
+      "modified": "2026-07-07T17:48:15.379954669Z"
+    },
+    {
+      "dependency": {
+        "name": "urllib3",
+        "version": "1.26.4"
+      },
+      "id": "GHSA-34jh-p97f-mpxf",
+      "display_id": "PYSEC-2026-1995",
+      "aliases": [
+        "CVE-2024-37891",
+        "PYSEC-2026-1995"
+      ],
+      "summary": "urllib3's Proxy-Authorization request header isn't stripped during cross-origin redirects",
+      "description": "When using urllib3's proxy support with `ProxyManager`, the `Proxy-Authorization` header is only sent to the configured  [trimmed]",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2024-37891",
+      "fix_versions": [
+        "1.26.19",
+        "2.2.2"
+      ],
+      "published": "2024-06-17T21:37:20Z",
+      "modified": "2026-09-10T03:50:14.811193644Z"
+    },
+    {
+      "dependency": {
+        "name": "urllib3",
+        "version": "1.26.4"
+      },
+      "id": "PYSEC-2026-1995",
+      "display_id": "PYSEC-2026-1995",
+      "aliases": [
+        "CVE-2024-37891",
+        "GHSA-34jh-p97f-mpxf"
+      ],
+      "summary": "urllib3's Proxy-Authorization request header isn't stripped during cross-origin redirects",
+      "description": "When using urllib3's proxy support with `ProxyManager`, the `Proxy-Authorization` header is only sent to the configured  [trimmed]",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2024-37891",
+      "fix_versions": [
+        "1.26.19",
+        "2.2.2"
+      ],
+      "published": "2026-07-07T14:34:34.848392Z",
+      "modified": "2026-07-07T17:48:15.400192088Z"
+    },
+    {
+      "dependency": {
+        "name": "urllib3",
+        "version": "1.26.4"
+      },
+      "id": "GHSA-38jv-5279-wg99",
+      "display_id": "PYSEC-2026-1996",
+      "aliases": [
+        "CVE-2026-21441",
+        "PYSEC-2026-1996"
+      ],
+      "summary": "Decompression-bomb safeguards bypassed when following HTTP redirects (streaming API)",
+      "description": "### Impact\n\nurllib3's [streaming API](https://urllib3.readthedocs.io/en/2.6.2/advanced-usage.html#streaming-and-i-o) is  [trimmed]",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2026-21441",
+      "fix_versions": [
+        "2.6.3"
+      ],
+      "published": "2026-01-07T19:18:14Z",
+      "modified": "2026-09-10T03:50:32.562010895Z"
+    },
+    {
+      "dependency": {
+        "name": "urllib3",
+        "version": "1.26.4"
+      },
+      "id": "PYSEC-2026-1996",
+      "display_id": "PYSEC-2026-1996",
+      "aliases": [
+        "CVE-2026-21441",
+        "GHSA-38jv-5279-wg99"
+      ],
+      "summary": "Decompression-bomb safeguards bypassed when following HTTP redirects (streaming API)",
+      "description": "### Impact\n\nurllib3's [streaming API](https://urllib3.readthedocs.io/en/2.6.2/advanced-usage.html#streaming-and-i-o) is  [trimmed]",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2026-21441",
+      "fix_versions": [
+        "2.6.3"
+      ],
+      "published": "2026-07-07T16:03:16.841533Z",
+      "modified": "2026-07-07T17:48:15.382053236Z"
+    },
+    {
+      "dependency": {
+        "name": "urllib3",
+        "version": "1.26.4"
+      },
+      "id": "PYSEC-2026-1998",
+      "display_id": "PYSEC-2026-1998",
+      "aliases": [
+        "CVE-2025-66418",
+        "GHSA-gm62-xv2j-4w53"
+      ],
+      "summary": "urllib3 allows an unbounded number of links in the decompression chain",
+      "description": "## Impact\n\nurllib3 supports chained HTTP encoding algorithms for response content according to RFC 9110 (e.g., `Content- [trimmed]",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2025-66418",
+      "fix_versions": [
+        "2.6.0"
+      ],
+      "published": "2026-07-07T16:03:12.278581Z",
+      "modified": "2026-07-07T17:47:54.140852492Z"
+    },
+    {
+      "dependency": {
+        "name": "urllib3",
+        "version": "1.26.4"
+      },
+      "id": "GHSA-gm62-xv2j-4w53",
+      "display_id": "PYSEC-2026-1998",
+      "aliases": [
+        "CVE-2025-66418",
+        "PYSEC-2026-1998"
+      ],
+      "summary": "urllib3 allows an unbounded number of links in the decompression chain",
+      "description": "## Impact\n\nurllib3 supports chained HTTP encoding algorithms for response content according to RFC 9110 (e.g., `Content- [trimmed]",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2025-66418",
+      "fix_versions": [
+        "2.6.0"
+      ],
+      "published": "2025-12-05T18:15:19Z",
+      "modified": "2026-09-10T03:50:58.741847479Z"
+    },
+    {
+      "dependency": {
+        "name": "urllib3",
+        "version": "1.26.4"
+      },
+      "id": "PYSEC-2026-1999",
+      "display_id": "PYSEC-2026-1999",
+      "aliases": [
+        "CVE-2025-50181",
+        "GHSA-pq67-6m6q-mj2v"
+      ],
+      "summary": "urllib3 redirects are not disabled when retries are disabled on PoolManager instantiation",
+      "description": "urllib3 handles redirects and retries using the same mechanism, which is controlled by the `Retry` object. The most comm [trimmed]",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2025-50181",
+      "fix_versions": [
+        "2.5.0"
+      ],
+      "published": "2026-07-07T16:02:55.519678Z",
+      "modified": "2026-07-07T17:47:54.161376347Z"
+    },
+    {
+      "dependency": {
+        "name": "urllib3",
+        "version": "1.26.4"
+      },
+      "id": "GHSA-pq67-6m6q-mj2v",
+      "display_id": "PYSEC-2026-1999",
+      "aliases": [
+        "CVE-2025-50181",
+        "PYSEC-2026-1999"
+      ],
+      "summary": "urllib3 redirects are not disabled when retries are disabled on PoolManager instantiation",
+      "description": "urllib3 handles redirects and retries using the same mechanism, which is controlled by the `Retry` object. The most comm [trimmed]",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2025-50181",
+      "fix_versions": [
+        "2.5.0"
+      ],
+      "published": "2025-06-18T17:50:00Z",
+      "modified": "2026-09-10T03:50:25.299291456Z"
+    },
+    {
+      "dependency": {
+        "name": "urllib3",
+        "version": "1.26.4"
+      },
+      "id": "PYSEC-2026-4175",
+      "display_id": "PYSEC-2026-4175",
+      "aliases": [
+        "CVE-2026-97687",
+        "GHSA-8988-9cw3-xx77"
+      ],
+      "summary": "urllib3: HTTPS proxy TLS configuration may be ignored or overridden",
+      "description": "## Impact\n\nurllib3 supports configuring TLS independently for an HTTPS proxy and the target server.\n\n`proxy_ssl_context` [trimmed]",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2026-97687",
+      "fix_versions": [
+        "2.8.0"
+      ],
+      "published": "2026-10-01T16:38:40.937127Z",
+      "modified": "2026-10-01T17:45:18.54238751Z"
+    },
+    {
+      "dependency": {
+        "name": "urllib3",
+        "version": "1.26.4"
+      },
+      "id": "GHSA-8988-9cw3-xx77",
+      "display_id": "PYSEC-2026-4175",
+      "aliases": [
+        "CVE-2026-97687",
+        "PYSEC-2026-4175"
+      ],
+      "summary": "urllib3: HTTPS proxy TLS configuration may be ignored or overridden",
+      "description": "## Impact\n\nurllib3 supports configuring TLS independently for an HTTPS proxy and the target server.\n\n`proxy_ssl_context` [trimmed]",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2026-97687",
+      "fix_versions": [
+        "2.8.0"
+      ],
+      "published": "2026-09-30T14:46:04Z",
+      "modified": "2026-10-01T17:55:53.79360855Z"
+    },
+    {
+      "dependency": {
+        "name": "urllib3",
+        "version": "1.26.4"
+      },
+      "id": "GHSA-vxq7-64xx-v4gw",
+      "display_id": "PYSEC-2026-4177",
+      "aliases": [
+        "CVE-2026-97689",
+        "PYSEC-2026-4177"
+      ],
+      "summary": "urllib3: HTTPResponse.stream()/read_chunked() buffers an unbounded chunk-size line into memory",
+      "description": "## Impact\n\nurllib3's [streaming API](https://urllib3.readthedocs.io/en/2.7.0/advanced-usage.html#streaming-and-i-o) is d [trimmed]",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2026-97689",
+      "fix_versions": [
+        "2.8.0"
+      ],
+      "published": "2026-09-30T14:46:18Z",
+      "modified": "2026-10-01T17:55:57.514829071Z"
+    },
+    {
+      "dependency": {
+        "name": "urllib3",
+        "version": "1.26.4"
+      },
+      "id": "PYSEC-2026-4177",
+      "display_id": "PYSEC-2026-4177",
+      "aliases": [
+        "CVE-2026-97689",
+        "GHSA-vxq7-64xx-v4gw"
+      ],
+      "summary": "urllib3: HTTPResponse.stream()/read_chunked() buffers an unbounded chunk-size line into memory",
+      "description": "## Impact\n\nurllib3's [streaming API](https://urllib3.readthedocs.io/en/2.7.0/advanced-usage.html#streaming-and-i-o) is d [trimmed]",
+      "link": "https://nvd.nist.gov/vuln/detail/CVE-2026-97689",
+      "fix_versions": [
+        "2.8.0"
+      ],
+      "published": "2026-10-01T16:38:41.0989Z",
+      "modified": "2026-10-01T17:45:18.336090182Z"
+    }
+  ],
+  "adverse_statuses": []
+}

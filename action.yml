@@ -1,0 +1,73 @@
+---
+name: uv-audit-cooldown
+description: >-
+  Cooldown-aware uv audit: warns while a fix is inside your exclude-newer
+  window, fails once it isn't.
+author: jgstew
+branding:
+  icon: shield
+  color: purple
+
+inputs:
+  working-directory:
+    description: The project directory, holding pyproject.toml and uv.lock.
+    default: "."
+  args:
+    description: >-
+      Extra arguments for `uv audit`, as one shell-quoted string, e.g.
+      `--no-dev --ignore GHSA-xxxx-xxxx-xxxx`.
+    default: ""
+  unfixed:
+    description: >-
+      How to report an advisory with no fixed version at all: `error` or
+      `warning`.
+    default: "error"
+  setup-uv:
+    description: >-
+      Install uv with astral-sh/setup-uv: `auto` (only when uv is not on
+      PATH), `true` or `false`.
+    default: "auto"
+  uv-version:
+    description: >-
+      The uv version setup-uv installs. Empty lets setup-uv decide (it reads
+      `required-version` from the project, else installs the latest).
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Check for uv
+      id: uv
+      shell: bash
+      env:
+        SETUP_UV: ${{ inputs.setup-uv }}
+      run: |
+        case "$SETUP_UV" in
+          true) install=true ;;
+          false) install=false ;;
+          auto)
+            if command -v uv >/dev/null 2>&1; then install=false; else install=true; fi ;;
+          *)
+            echo "::error title=uv-audit-cooldown::setup-uv must be auto, true or false, not '$SETUP_UV'"
+            exit 1 ;;
+        esac
+        echo "install=$install" >> "$GITHUB_OUTPUT"
+
+    - name: Install uv
+      if: steps.uv.outputs.install == 'true'
+      uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      with:
+        version: ${{ inputs.uv-version }}
+        working-directory: ${{ inputs.working-directory }}
+        enable-cache: false
+
+    # runs this checkout (never PyPI), so a SHA-pinned `uses:` pins the code
+    - name: uv-audit-cooldown
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        INPUT_ARGS: ${{ inputs.args }}
+        INPUT_UNFIXED: ${{ inputs.unfixed }}
+      run: |
+        uv run --quiet --frozen --no-dev --project "$GITHUB_ACTION_PATH" \
+          uv-audit-cooldown --unfixed "$INPUT_UNFIXED" --extra-args "$INPUT_ARGS"
