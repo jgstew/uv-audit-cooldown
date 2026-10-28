@@ -1,8 +1,8 @@
 ---
 # Bump `[project] version` in a PR; merging it to main builds, tags, creates
-# the GitHub release, then (once PYPI_PUBLISH is set) publishes to PyPI.
-# PyPI goes last on purpose, and nothing here retries: if a step fails, fix
-# it and release a new version.
+# a draft GitHub release, publishes to PyPI (once PYPI_PUBLISH is set), then
+# publishes the draft. Nothing here retries: if a step fails, fix it and
+# release a new version.
 name: Tag and Release
 
 on:
@@ -120,13 +120,23 @@ jobs:
             "$(cat dist/SHA256SUMS.txt)" >> "$notes_file"
           echo "NOTES_FILE=$notes_file" >> "$GITHUB_ENV"
 
-      # no checkout here, so gh needs the repo named explicitly
-      - name: Create the GitHub release
+      # a draft release does not create its tag, so tag first
+      - name: Create the tag
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ needs.version.outputs.version }}
         run: |
-          gh release create "v${VERSION}" --repo "${GITHUB_REPOSITORY}" --target "${GITHUB_SHA}" \
+          gh api "repos/${GITHUB_REPOSITORY}/git/refs" --method POST \
+            -f "ref=refs/tags/v${VERSION}" -f "sha=${GITHUB_SHA}"
+
+      # a draft, so every asset is attached before the release is published
+      # (and, with immutable releases, locked); no checkout, so name the repo
+      - name: Create the draft GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          gh release create "v${VERSION}" --repo "${GITHUB_REPOSITORY}" --verify-tag --draft \
             --title "v${VERSION}" --notes-file "${NOTES_FILE}" \
             dist/*.whl dist/*.tar.gz dist/SHA256SUMS.txt
 
@@ -154,3 +164,21 @@ jobs:
       # the same files the GitHub release carries
       - name: uv publish (trusted publishing)
         run: uv publish --trusted-publishing always dist/*.whl dist/*.tar.gz
+
+  # last: if PyPI fails, the release stays a draft
+  finalize:
+    name: Publish the GitHub release
+    needs: [version, release, publish]
+    # publish is skipped while PYPI_PUBLISH is unset
+    if: >-
+      !cancelled() && needs.release.result == 'success'
+      && contains(fromJSON('["success", "skipped"]'), needs.publish.result)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Publish the draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: gh release edit "v${VERSION}" --repo "${GITHUB_REPOSITORY}" --draft=false
