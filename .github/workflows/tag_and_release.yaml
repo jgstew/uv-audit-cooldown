@@ -1,6 +1,6 @@
 ---
-# Bump `[project] version` in a PR; merging it to main builds, tags, creates
-# a draft GitHub release, publishes to PyPI (once PYPI_PUBLISH is set), then
+# Bump `[project] version` in a PR; merging it to main builds, signs, tags,
+# creates a draft GitHub release, publishes to PyPI (once PYPI_PUBLISH is set), then
 # publishes the draft. Nothing here retries: if a step fails, fix it and
 # release a new version.
 name: Tag and Release
@@ -92,9 +92,45 @@ jobs:
           path: dist/
           if-no-files-found: error
 
+  # signs what build made: holds an OIDC token but runs no build code
+  attest:
+    name: Attest build provenance
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist
+          path: dist/
+
+      - id: attest
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            dist/*.whl
+            dist/*.tar.gz
+
+      # the release asset Scorecard and `sigstore verify` look for
+      - name: Name the Sigstore bundle
+        env:
+          BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          mkdir sigstore
+          cp "$BUNDLE" "sigstore/uv_audit_cooldown-${VERSION}.sigstore.json"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sigstore
+          path: sigstore/
+          if-no-files-found: error
+
   release:
     name: Tag and Release
-    needs: [version, build]
+    needs: [version, build, attest]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -103,6 +139,20 @@ jobs:
         with:
           name: dist
           path: dist/
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: sigstore
+          path: sigstore/
+
+      # fail before tagging if the bundle doesn't verify
+      - name: Verify the attestation
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for file in dist/*.whl dist/*.tar.gz; do
+            gh attestation verify "$file" --repo "${GITHUB_REPOSITORY}" --bundle sigstore/*.sigstore.json
+          done
 
       - name: Build release notes
         env:
@@ -118,6 +168,9 @@ jobs:
           # shellcheck disable=SC2016
           printf '\n## SHA-256\n\nVerify with `sha256sum -c SHA256SUMS.txt`:\n\n```\n%s\n```\n' \
             "$(cat dist/SHA256SUMS.txt)" >> "$notes_file"
+          # shellcheck disable=SC2016
+          printf '\nVerify provenance with `gh attestation verify <file> --repo %s`.\n' \
+            "${GITHUB_REPOSITORY}" >> "$notes_file"
           echo "NOTES_FILE=$notes_file" >> "$GITHUB_ENV"
 
       # a draft release does not create its tag, so tag first
@@ -138,7 +191,7 @@ jobs:
         run: |
           gh release create "v${VERSION}" --repo "${GITHUB_REPOSITORY}" --verify-tag --draft \
             --title "v${VERSION}" --notes-file "${NOTES_FILE}" \
-            dist/*.whl dist/*.tar.gz dist/SHA256SUMS.txt
+            dist/*.whl dist/*.tar.gz dist/SHA256SUMS.txt sigstore/*.sigstore.json
 
   # Inert until the PyPI trusted publisher exists (workflow tag_and_release.yaml,
   # environment pypi) and the repository variable PYPI_PUBLISH is `true`.
@@ -157,13 +210,15 @@ jobs:
           name: dist
           path: dist/
 
-      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
-        with:
-          enable-cache: false
+      # only the wheel and sdist go to PyPI
+      - name: Drop the checksums file
+        run: rm dist/SHA256SUMS.txt
 
-      # the same files the GitHub release carries
-      - name: uv publish (trusted publishing)
-        run: uv publish --trusted-publishing always dist/*.whl dist/*.tar.gz
+      # the same files the GitHub release carries, plus PEP 740 attestations
+      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
+        with:
+          packages-dir: dist/
+          attestations: true
 
   # last: if PyPI fails, the release stays a draft
   finalize:
