@@ -22,6 +22,11 @@ inputs:
       How to report an advisory with no fixed version at all: `error` or
       `warning`.
     default: "error"
+  no-lockfile:
+    description: >-
+      How to report a directory with no project or no uv.lock: `warning`
+      (pass, with an annotation) or `error`.
+    default: "warning"
   setup-uv:
     description: >-
       Install uv with astral-sh/setup-uv: `auto` (only when uv is not on
@@ -68,6 +73,8 @@ runs:
       env:
         INPUT_ARGS: ${{ inputs.args }}
         INPUT_UNFIXED: ${{ inputs.unfixed }}
+        INPUT_NO_LOCKFILE: ${{ inputs.no-lockfile }}
       run: |
         uv run --quiet --frozen --no-dev --project "$GITHUB_ACTION_PATH" \
-          uv-audit-cooldown --unfixed "$INPUT_UNFIXED" --extra-args="$INPUT_ARGS"
+          uv-audit-cooldown --unfixed "$INPUT_UNFIXED" --no-lockfile "$INPUT_NO_LOCKFILE" \
+          --extra-args="$INPUT_ARGS"

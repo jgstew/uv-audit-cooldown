@@ -38,7 +38,8 @@ class FakeUv:
         if cmd[1] == "audit":
             return self.audit
         assert cmd[1:3] == ["lock", "--dry-run"], cmd
-        return self.lifted if "--exclude-newer" in cmd else self.lock
+        # the lifted probe is the one that sets `<name>=false`
+        return self.lifted if any(c.endswith("=false") for c in cmd) else self.lock
 
 
 @pytest.fixture
@@ -90,6 +91,7 @@ def test_virtualenv_inside_cooldown_passes_with_a_warning(
         "virtualenv",
         "--exclude-newer",
         "false",
+        "--no-build",
         "--exclude-newer-package",
         "virtualenv=false",
     ]
@@ -197,6 +199,43 @@ def test_config_options_go_to_both(project: Path) -> None:
     assert fake.calls[1][-3:] == ["--config-file", "uv.toml", "--no-config"]
 
 
+def test_resolver_options_go_to_both(project: Path) -> None:
+    fake = FakeUv(audit_json("audit_virtualenv.json"))
+    argv = ["--index", "corp=https://pypi.example/simple", "--prerelease=allow", "-iURL"]
+    argv += ["--no-sources", "--ignore", "GHSA-x", "-f", "wheels/"]
+    run(argv, fake, project)
+    shared = argv[:4] + ["--no-sources", "-f", "wheels/"]
+    assert fake.calls[1][-len(shared) :] == shared
+    assert fake.calls[2][-len(shared) :] == shared
+    assert all("--ignore" not in c for c in fake.calls[1:])
+
+
+def test_lifted_probe_sets_its_own_cooldown_and_build_options(project: Path) -> None:
+    # uv rejects these options twice; the lifted probe replaces the user's
+    fake = FakeUv(audit_json("audit_virtualenv.json"))
+    argv = ["--exclude-newer", "2026-01-01", "--exclude-newer-package=x=1 day", "--no-build"]
+    run(argv, fake, project)
+    assert fake.calls[1][-4:] == argv
+    lifted = fake.calls[2]
+    assert lifted.count("--exclude-newer") == 1
+    assert lifted.count("--no-build") == 1
+    assert "2026-01-01" not in lifted
+    assert "--exclude-newer-package=x=1 day" not in lifted
+
+
+def test_lifted_probe_that_needs_a_build_is_exit_2(
+    project: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    fake = FakeUv(
+        audit_json("audit_virtualenv.json"),
+        lifted=RunResult(1, "", "error: Building source distributions is disabled\n"),
+    )
+    assert run([], fake, project) == 2
+    err = capsys.readouterr().err
+    assert "--exclude-newer false --no-build" in err
+    assert "Building source distributions is disabled" in err
+
+
 def test_extra_args_string_is_shell_split(project: Path) -> None:
     fake = FakeUv(audit_json("audit_virtualenv.json"))
     run(["--extra-args", "--no-dev  --ignore 'GHSA-a b'"], fake, project)
@@ -238,7 +277,19 @@ def test_skips_without_a_lock_or_project(
     fake = FakeUv(result)
     assert run([], fake, tmp_path) == 0
     assert len(fake.calls) == 1
-    assert "nothing to audit" in capsys.readouterr().out
+    assert capsys.readouterr().out.startswith("warning: nothing to audit (")
+
+
+def test_no_lockfile_is_annotated_or_an_error(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    result = RunResult(1, "", "error: Unable to find lockfile at `uv.lock`.\n")
+    assert run([], FakeUv(result), tmp_path, {"GITHUB_ACTIONS": "true"}) == 0
+    assert capsys.readouterr().out.startswith(
+        "::warning title=uv-audit-cooldown::nothing to audit ("
+    )
+    assert run(["--no-lockfile", "error"], FakeUv(result), tmp_path) == 1
+    assert capsys.readouterr().out.startswith("error: nothing to audit (")
 
 
 def test_script_runs_without_uv_lock(tmp_path: Path) -> None:

@@ -38,11 +38,19 @@ finding is reported, no other network call is made.
 | A fixed version is allowed now | fail |
 | A fix is blocked by something other than the cooldown (a pin) | fail |
 | No fix has been published | fail (`--unfixed warning` to soften) |
-| No project or no `uv.lock` (as uv finds them) | skip |
+| No project or no `uv.lock` (as uv finds them) | pass with a warning (`--no-lockfile error` to fail) |
+
+To tell whether a fix is held back only by the cooldown, it runs a second
+dry run with the cooldown lifted. That one uses `--no-build`, so it never
+runs build code from a release that is still inside the cooldown; if it would
+need a build, the tool exits `2`.
 
 In GitHub Actions, messages are printed as `::warning`/`::error` annotations.
 `--verbose` prints one line per advisory. Other arguments go to `uv audit`,
-e.g. `--no-dev` or `--ignore GHSA-…`. `--offline` isn't used: on a cold
+e.g. `--no-dev` or `--ignore GHSA-…`. Location, config, index, cache, build
+and resolver options (`--project`, `--index`, `--prerelease`, `--exclude-newer`, …)
+also go to the dry runs, so both see the same settings; `UV_*` environment
+variables reach both too. `--offline` isn't used: on a cold
 CI cache it fails, and with a stale cache it could hide a fix that is already allowed.
 
 Exit codes: `0` nothing to do now, `1` action needed, `2` uv failed or its
@@ -51,7 +59,8 @@ output wasn't understood.
 ## Action inputs
 
 `working-directory` (default `.`), `args` (extra `uv audit` arguments),
-`unfixed` (`error`/`warning`), `setup-uv` (`auto`/`true`/`false`), `uv-version`.
+`unfixed` (`error`/`warning`), `no-lockfile` (`warning`/`error`),
+`setup-uv` (`auto`/`true`/`false`), `uv-version`.
 
 ## Pinning
 
@@ -59,6 +68,16 @@ output wasn't understood.
   (`uv run --frozen --project "$GITHUB_ACTION_PATH"`) and never installs from PyPI.
 - **pre-commit:** pin `rev:` to a tag, or to a SHA with `pre-commit autoupdate --freeze`.
 - **uvx:** pin a version: `uvx uv-audit-cooldown@1.0.0`.
+
+### pre-commit limitation
+
+pre-commit installs the hook with pip (`language: python`), which ignores this
+repo's `uv.lock` and `exclude-newer`. The hook's dependency (`packaging`) and
+its build backend (`uv_build`) therefore come from PyPI at their newest allowed
+versions, with no cooldown. `rev:` pins only this repo's code. If that matters,
+use the Action (it runs `uv run --frozen` from its own lockfile), or a `local`
+hook with `language: system` and
+`entry: uvx --exclude-newer "7 days" uv-audit-cooldown@1.0.0`.
 
 ## Related uv issues
 

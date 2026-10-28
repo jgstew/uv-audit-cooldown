@@ -33,9 +33,54 @@ TITLE = "uv-audit-cooldown"
 AUDIT = ["audit", "--preview-features", "audit-command,json-output", "--frozen"]
 AUDIT += ["--output-format", "json", "--color", "never"]
 DRY_RUN = ["lock", "--dry-run", "--color", "never", "--upgrade-package"]
-# also passed to `uv lock`, so both commands see the same project and settings
-SHARED_OPTIONS = ("--directory", "--project", "--script", "--config-file")
-SHARED_FLAGS = ("--no-config",)
+# the probe that lifts the cooldown must not build (run code from) a release still inside it
+LIFTED = ("--exclude-newer", "false", "--no-build")
+# also passed to `uv lock`, so both commands see the same project, indexes and resolver settings
+SHARED_OPTIONS = (
+    "--directory",
+    "--project",
+    "--script",
+    "--config-file",
+    "--cache-dir",
+    "--index",
+    "--default-index",
+    "--index-url",
+    "-i",
+    "--extra-index-url",
+    "--find-links",
+    "-f",
+    "--index-strategy",
+    "--keyring-provider",
+    "--allow-insecure-host",
+    "--resolution",
+    "--prerelease",
+    "--prerelease-package",
+    "--fork-strategy",
+    "--exclude-newer",
+    "--exclude-newer-package",
+    "--no-sources-package",
+    "--no-binary-package",
+    "--no-build-package",
+    "--no-build-isolation-package",
+    "--config-setting",
+    "-C",
+    "--config-settings-package",
+)
+SHARED_FLAGS = (
+    "--no-config",
+    "--no-cache",
+    "-n",
+    "--system-certs",
+    "--no-index",
+    "--no-sources",
+    "--no-binary",
+    "--no-build",
+    "--no-build-isolation",
+    "--require-build-hashes",
+    "--no-require-build-hashes",
+)
+# uv rejects these twice, and the lifted probe sets its own
+NOT_LIFTED = ("--exclude-newer", "--exclude-newer-package", "--no-build")
 # uv's own messages for "nothing to audit here"
 NOTHING_TO_AUDIT = ("Unable to find lockfile", "No `pyproject.toml` found")
 # would make the dry runs refuse to resolve
@@ -100,6 +145,12 @@ def _parser() -> argparse.ArgumentParser:
         help="how to report an advisory with no fixed version at all (default: error)",
     )
     parser.add_argument(
+        "--no-lockfile",
+        choices=[s.value for s in Severity],
+        default=Severity.WARNING.value,
+        help="how to report a directory with no project or no uv.lock (default: warning)",
+    )
+    parser.add_argument(
         "--extra-args",
         default="",
         metavar="STRING",
@@ -114,15 +165,27 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _shared_args(args: Sequence[str]) -> list[str]:
-    out: list[str] = []
+def _shared_args(args: Sequence[str]) -> list[list[str]]:
+    """The arguments `uv lock` should see too, one list per option with its value."""
+    out: list[list[str]] = []
+    short = tuple(o for o in SHARED_OPTIONS if len(o) == 2)
     it = iter(args)
     for arg in it:
         if arg in SHARED_OPTIONS:
-            out += [arg, next(it, "")]
+            out.append([arg, next(it, "")])
         elif arg in SHARED_FLAGS or arg.startswith(tuple(f"{o}=" for o in SHARED_OPTIONS)):
-            out.append(arg)
+            out.append([arg])
+        elif arg.startswith(short) and not arg.startswith("--"):
+            out.append([arg])  # `-iURL`
     return out
+
+
+def _option_name(arg: list[str]) -> str:
+    return arg[0].split("=", 1)[0]
+
+
+def _flatten(args: Sequence[list[str]]) -> list[str]:
+    return [a for arg in args for a in arg]
 
 
 def main(
@@ -143,27 +206,38 @@ def main(
     opts, passthrough = _parser().parse_known_args(argv)
     passthrough += shlex.split(opts.extra_args) + after
     shared = _shared_args(passthrough)
+    shared_lifted = [a for a in shared if _option_name(a) not in NOT_LIFTED]
 
     uv = environ.get("UV") or "uv"
     env = {k: v for k, v in environ.items() if k not in DROPPED_ENV}
     run = runner or _subprocess_runner(cwd)
     github = bool(environ.get("GITHUB_ACTIONS"))
 
+    def emit(severity: Severity, message: str) -> None:
+        level = severity.value
+        print(workflow_command(level, message) if github else f"{level}: {message}")
+
     try:
-        findings, adverse = _check(uv, passthrough, shared, run, env, Severity(opts.unfixed))
+        findings, adverse = _check(
+            uv,
+            passthrough,
+            _flatten(shared),
+            _flatten(shared_lifted),
+            run,
+            env,
+            Severity(opts.unfixed),
+        )
     except NothingToAudit as exc:
-        print(f"{TITLE}: nothing to audit ({exc}).")
-        return 0
+        # visible, so a missing or uncommitted lockfile does not pass unnoticed
+        severity = Severity(opts.no_lockfile)
+        emit(severity, f"nothing to audit ({exc}).")
+        return 1 if severity is Severity.ERROR else 0
     except FileNotFoundError:
         print(f"{TITLE}: `{uv}` not found; install uv or put it on PATH.", file=sys.stderr)
         return 2
     except (UvFailed, SchemaError) as exc:
         print(f"{TITLE}: {exc}", file=sys.stderr)
         return 2
-
-    def emit(severity: Severity, message: str) -> None:
-        level = severity.value
-        print(workflow_command(level, message) if github else f"{level}: {message}")
 
     for status in adverse:
         emit(Severity.ERROR, f"adverse project status: {status}")
@@ -184,6 +258,7 @@ def _check(
     uv: str,
     passthrough: Sequence[str],
     shared: Sequence[str],
+    shared_lifted: Sequence[str],
     run: Runner,
     env: Mapping[str, str],
     unfixed: Severity,
@@ -201,13 +276,12 @@ def _check(
     except SchemaError as exc:
         raise SchemaError(f"{exc}\n{audit.stderr}".rstrip()) from None
 
-    def dry_run(name: str, *extra: str) -> str:
-        result = run([uv, *DRY_RUN, name, *extra, *shared], env)
+    def dry_run(name: str, *lift: str) -> str:
+        result = run([uv, *DRY_RUN, name, *lift, *(shared_lifted if lift else shared)], env)
         if result.returncode != 0:
-            raise UvFailed(
-                f"`uv lock --dry-run --upgrade-package {name}` exited {result.returncode}:\n"
-                f"{result.stderr}".rstrip()
-            )
+            # a lifted probe that needs a build can't be decided without running that code
+            cmd = " ".join(["uv lock --dry-run --upgrade-package", name, *lift])
+            raise UvFailed(f"`{cmd}` exited {result.returncode}:\n{result.stderr}".rstrip())
         # uv prints the changes on stderr; read both in case that moves
         return result.stdout + result.stderr
 
@@ -226,9 +300,7 @@ def _check(
 
         def lifted(name: str = v.name, key: tuple[str, str] = key) -> tuple[str, ...] | None:
             if key not in lifted_cache:
-                text = dry_run(
-                    name, "--exclude-newer", "false", "--exclude-newer-package", f"{name}=false"
-                )
+                text = dry_run(name, *LIFTED, "--exclude-newer-package", f"{name}=false")
                 lifted_cache[key] = reachable_versions(text, name, key[1])
             return lifted_cache[key]
 
