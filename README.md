@@ -6,7 +6,20 @@ Cooldown-aware `uv audit`: it warns while a fix is inside your `exclude-newer` w
 
 ```yaml
 # GitHub Action
-- uses: jgstew/uv-audit-cooldown@<full-commit-sha> # v1.0.0
+on:
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1" # advisories appear without code changes
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jgstew/uv-audit-cooldown@0b808b7239fced579e4bb19f3d3ab3a918472abe # v1.0.0
 ```
 
 ```yaml
