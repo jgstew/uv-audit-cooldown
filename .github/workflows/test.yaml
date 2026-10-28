@@ -1,0 +1,151 @@
+---
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: py${{ matrix.python-version }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        include:
+          - os: macos-latest
+            python-version: "3.13"
+          - os: windows-latest
+            python-version: "3.13"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          enable-cache: true
+
+      - name: Install
+        run: uv sync --frozen --python ${{ matrix.python-version }}
+
+      - name: Lint
+        run: uv run --frozen ruff check .
+
+      - name: Type-check
+        run: uv run --frozen mypy
+
+      - name: Test
+        run: uv run --frozen pytest -q -rs
+
+  action:
+    name: action (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Copy the fixture project
+        shell: bash
+        run: |
+          dest="$RUNNER_TEMP/fixture"
+          mkdir -p "$dest"
+          cp tests/fixtures/cooldown-project/pyproject.toml.fixture "$dest/pyproject.toml"
+          cp tests/fixtures/cooldown-project/uv.lock.fixture "$dest/uv.lock"
+          echo "FIXTURE=$dest" >> "$GITHUB_ENV"
+
+      - name: Every fix inside the cooldown passes
+        uses: ./ # zizmor: ignore[self-repository]
+        with:
+          working-directory: ${{ env.FIXTURE }}
+          unfixed: warning
+
+      - name: A fix allowed now fails
+        id: allowed
+        continue-on-error: true
+        uses: ./ # zizmor: ignore[self-repository]
+        env:
+          UV_EXCLUDE_NEWER: "2021-06-01T00:00:00Z"
+        with:
+          working-directory: ${{ env.FIXTURE }}
+          unfixed: warning
+
+      - name: Check that it failed
+        shell: bash
+        env:
+          OUTCOME: ${{ steps.allowed.outcome }}
+        run: |
+          if [ "$OUTCOME" != "failure" ]; then
+            echo "::error::expected the fix-allowed run to fail, got $OUTCOME"
+            exit 1
+          fi
+
+      # outside the checkout, so uv can't find this repo's own project upward
+      - name: Make an empty directory
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/empty"
+          echo "EMPTY=$RUNNER_TEMP/empty" >> "$GITHUB_ENV"
+
+      - name: No uv.lock passes with a warning
+        uses: ./ # zizmor: ignore[self-repository]
+        with:
+          working-directory: ${{ env.EMPTY }}
+
+      # fails only on the skip path, so together with the step above it proves that path ran
+      - name: No uv.lock fails with no-lockfile error
+        id: nolock
+        continue-on-error: true
+        uses: ./ # zizmor: ignore[self-repository]
+        with:
+          working-directory: ${{ env.EMPTY }}
+          no-lockfile: error
+
+      - name: Check that it failed
+        shell: bash
+        env:
+          OUTCOME: ${{ steps.nolock.outcome }}
+        run: |
+          if [ "$OUTCOME" != "failure" ]; then
+            echo "::error::expected the no-lockfile run to fail, got $OUTCOME"
+            exit 1
+          fi
+
+  hook:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+
+      - name: pre-commit try-repo against the fixture project
+        run: |
+          repo="$PWD"
+          dest="$RUNNER_TEMP/fixture"
+          mkdir -p "$dest"
+          cp tests/fixtures/cooldown-project/pyproject.toml.fixture "$dest/pyproject.toml"
+          cp tests/fixtures/cooldown-project/uv.lock.fixture "$dest/uv.lock"
+          cd "$dest"
+          git init -q
+          git add .
+          uvx --exclude-newer "7 days" pre-commit try-repo "$repo" uv-audit-cooldown \
+            --all-files --verbose

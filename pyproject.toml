@@ -1,0 +1,80 @@
+[build-system]
+requires = ["uv_build>=0.13.0,<0.14.0"]
+build-backend = "uv_build"
+
+[project]
+name = "uv-audit-cooldown"
+version = "1.0.0"
+description = "Cooldown-aware `uv audit`: warns while a fix is inside your `exclude-newer` window, fails once it isn't."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    { name = "JGStew", email = "admin@jgstew.com" },
+]
+requires-python = ">=3.10"
+keywords = ["uv", "audit", "security", "supply-chain", "pre-commit", "github-action"]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Security",
+  "Topic :: Software Development :: Quality Assurance",
+  "Typing :: Typed",
+]
+# uv is not a dependency: the tool drives the caller's own uv
+dependencies = [
+  "packaging>=24",
+]
+
+[dependency-groups]
+dev = [
+  "mypy>=1.10",
+  "pytest>=8",
+  "pytest-cov>=5",
+  "pyyaml>=6",
+  "ruff>=0.5",
+]
+
+[project.scripts]
+uv-audit-cooldown = "uv_audit_cooldown.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/jgstew/uv-audit-cooldown"
+Issues   = "https://github.com/jgstew/uv-audit-cooldown/issues"
+Source   = "https://github.com/jgstew/uv-audit-cooldown"
+
+[tool.uv]
+exclude-newer = "7 days"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+  "network: reaches PyPI and the OSV vulnerability service through real uv (skip with -m 'not network')",
+]
+
+[tool.coverage.run]
+source = ["src"]
+branch = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+extend-select = ["B", "I", "UP", "SIM", "T20"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/uv_audit_cooldown/cli.py" = ["T20"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+files = ["src"]

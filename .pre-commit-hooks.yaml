@@ -1,0 +1,12 @@
+---
+- id: uv-audit-cooldown
+  name: uv audit (cooldown-aware)
+  description: >
+    uv audit that warns while a fix is inside the exclude-newer cooldown and
+    fails once it isn't. Skips without a uv.lock. Needs uv on PATH.
+  entry: uv-audit-cooldown
+  language: python
+  always_run: true
+  pass_filenames: false
+  require_serial: true
+  minimum_pre_commit_version: "2.9.2"

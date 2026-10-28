@@ -1,0 +1,156 @@
+---
+# Bump `[project] version` in a PR; merging it to main builds, tags, creates
+# the GitHub release, then (once PYPI_PUBLISH is set) publishes to PyPI.
+# PyPI goes last on purpose, and nothing here retries: if a step fails, fix
+# it and release a new version.
+name: Tag and Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "pyproject.toml"
+      - "uv.lock"
+      - "src/**"
+      - ".github/workflows/tag_and_release.yaml"
+      - ".github/workflows/test.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # never cancel a release mid-flight
+  group: release-${{ github.ref }}
+
+jobs:
+  version:
+    name: Check for an untagged version
+    runs-on: ubuntu-latest
+    if: github.repository == 'jgstew/uv-audit-cooldown' && github.ref == 'refs/heads/main'
+    outputs:
+      version: ${{ steps.getversion.outputs.version }}
+      release_needed: ${{ steps.tagged.outputs.release_needed }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+
+      - name: Read version from pyproject.toml
+        id: getversion
+        run: |
+          version="$(python3 -c 'import pathlib, tomllib; print(tomllib.loads(pathlib.Path("pyproject.toml").read_text())["project"]["version"])')"
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([.-]?[0-9A-Za-z.]+)?$'; then
+            echo "::error::unexpected version string in pyproject.toml: '$version'"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Check whether v<version> is already tagged
+        id: tagged
+        env:
+          VERSION: ${{ steps.getversion.outputs.version }}
+        run: |
+          if git show-ref --tags --verify --quiet -- "refs/tags/v${VERSION}"; then
+            echo "release_needed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "release_needed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  test:
+    name: Test
+    needs: version
+    if: needs.version.outputs.release_needed == 'true'
+    uses: ./.github/workflows/test.yaml # zizmor: ignore[self-repository]
+
+  # no write permissions: build code never runs next to a credential
+  build:
+    name: Build
+    needs: [version, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          enable-cache: false
+
+      - name: uv build
+        run: uv build
+
+      - name: Compute SHA-256 checksums
+        working-directory: dist
+        run: sha256sum ./*.whl ./*.tar.gz > SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  release:
+    name: Tag and Release
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist
+          path: dist/
+
+      - name: Build release notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          notes_file="${RUNNER_TEMP}/release-notes.md"
+          if ! gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" --method POST \
+                -f "tag_name=v${VERSION}" -f "target_commitish=${GITHUB_SHA}" \
+                --jq '.body' > "$notes_file"; then
+            printf 'Release v%s\n' "${VERSION}" > "$notes_file"
+          fi
+          # shellcheck disable=SC2016
+          printf '\n## SHA-256\n\nVerify with `sha256sum -c SHA256SUMS.txt`:\n\n```\n%s\n```\n' \
+            "$(cat dist/SHA256SUMS.txt)" >> "$notes_file"
+          echo "NOTES_FILE=$notes_file" >> "$GITHUB_ENV"
+
+      # no checkout here, so gh needs the repo named explicitly
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          gh release create "v${VERSION}" --repo "${GITHUB_REPOSITORY}" --target "${GITHUB_SHA}" \
+            --title "v${VERSION}" --notes-file "${NOTES_FILE}" \
+            dist/*.whl dist/*.tar.gz dist/SHA256SUMS.txt
+
+  # Inert until the PyPI trusted publisher exists (workflow tag_and_release.yaml,
+  # environment pypi) and the repository variable PYPI_PUBLISH is `true`.
+  publish:
+    name: Publish to PyPI
+    needs: release
+    if: vars.PYPI_PUBLISH == 'true'
+    runs-on: ubuntu-latest
+    # must match the PyPI trusted publisher's environment name
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist
+          path: dist/
+
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          enable-cache: false
+
+      # the same files the GitHub release carries
+      - name: uv publish (trusted publishing)
+        run: uv publish --trusted-publishing always dist/*.whl dist/*.tar.gz
