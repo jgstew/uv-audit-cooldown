@@ -77,6 +77,15 @@ repos:
       - id: validate-pyproject
         stages: [manual]
 
+  # scores the package metadata; runs only when that metadata can change
+  - repo: https://github.com/regebro/pyroma
+    rev: dd478a67d029502036973a9f596ec4b2c0614bf7 # 5.0.1
+    hooks:
+      - id: pyroma
+        always_run: false
+        files: ^(README\.md|pyproject\.toml|src/uv_audit_cooldown/__init__\.py)$
+        stages: [manual]
+
   - repo: https://github.com/python-jsonschema/check-jsonschema
     rev: 0494aa7fa1314e98913a41227d8f0a515b2c1049 # 0.38.2
     hooks:
