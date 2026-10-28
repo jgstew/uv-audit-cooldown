@@ -6,6 +6,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -54,11 +55,15 @@ def test_runs_its_own_checkout_not_pypi() -> None:
     script = main_step()["run"]
     assert '--project "$GITHUB_ACTION_PATH"' in script
     assert "--frozen" in script
+    # `=` so a single-flag value like `--no-dev` is not read as an option
+    assert '--extra-args="$INPUT_ARGS"' in script
     assert "uvx" not in script
     assert "pip install" not in script
 
 
 @pytest.mark.network
+# `bash` there is the WSL launcher; test.yaml's action job covers Windows
+@pytest.mark.skipif(sys.platform == "win32", reason="covered by the action job on Windows")
 def test_runs_from_action_path(cooldown_project: Path, tmp_path: Path) -> None:
     """Run the step's script as a runner would: from a copy of the repo somewhere else."""
     action_path = tmp_path / "_actions" / "jgstew" / "uv-audit-cooldown" / "v1"

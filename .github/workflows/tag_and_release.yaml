@@ -25,7 +25,7 @@ jobs:
   version:
     name: Check for an untagged version
     runs-on: ubuntu-latest
-    if: github.repository == 'jgstew/uv-audit-cooldown'
+    if: github.repository == 'jgstew/uv-audit-cooldown' && github.ref == 'refs/heads/main'
     outputs:
       version: ${{ steps.getversion.outputs.version }}
       release_needed: ${{ steps.tagged.outputs.release_needed }}

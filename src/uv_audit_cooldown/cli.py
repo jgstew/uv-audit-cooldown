@@ -31,9 +31,15 @@ from .core import (
 
 TITLE = "uv-audit-cooldown"
 AUDIT = ["audit", "--preview-features", "audit-command,json-output", "--frozen"]
-AUDIT += ["--output-format", "json"]
-# also passed to `uv lock`, so both commands see the same project
-LOCATION_OPTIONS = ("--directory", "--project", "--script")
+AUDIT += ["--output-format", "json", "--color", "never"]
+DRY_RUN = ["lock", "--dry-run", "--color", "never", "--upgrade-package"]
+# also passed to `uv lock`, so both commands see the same project and settings
+SHARED_OPTIONS = ("--directory", "--project", "--script", "--config-file")
+SHARED_FLAGS = ("--no-config",)
+# uv's own messages for "nothing to audit here"
+NOTHING_TO_AUDIT = ("Unable to find lockfile", "No `pyproject.toml` found")
+# would make the dry runs refuse to resolve
+DROPPED_ENV = ("VIRTUAL_ENV", "UV_FROZEN", "UV_LOCKED")
 
 
 @dataclass(frozen=True)
@@ -50,10 +56,21 @@ class UvFailed(Exception):
     pass
 
 
+class NothingToAudit(Exception):
+    pass
+
+
 def _subprocess_runner(cwd: Path) -> Runner:
     def run(cmd: Sequence[str], env: Mapping[str, str]) -> RunResult:
         proc = subprocess.run(
-            list(cmd), cwd=cwd, env=dict(env), capture_output=True, text=True, check=False
+            list(cmd),
+            cwd=cwd,
+            env=dict(env),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
         )
         return RunResult(proc.returncode, proc.stdout, proc.stderr)
 
@@ -97,28 +114,15 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _location_args(args: Sequence[str]) -> list[str]:
+def _shared_args(args: Sequence[str]) -> list[str]:
     out: list[str] = []
     it = iter(args)
     for arg in it:
-        if arg in LOCATION_OPTIONS:
+        if arg in SHARED_OPTIONS:
             out += [arg, next(it, "")]
-        elif arg.startswith(tuple(f"{o}=" for o in LOCATION_OPTIONS)):
+        elif arg in SHARED_FLAGS or arg.startswith(tuple(f"{o}=" for o in SHARED_OPTIONS)):
             out.append(arg)
     return out
-
-
-def _lock_dir(location: Sequence[str], cwd: Path) -> Path | None:
-    """Where uv.lock should be, or None when a --script is audited instead."""
-    values: dict[str, str] = {}
-    it = iter(location)
-    for arg in it:
-        key, eq, value = arg.partition("=")
-        values[key] = value if eq else next(it, "")
-    if "--script" in values:
-        return None
-    base = cwd / values.get("--directory", "")
-    return base / values.get("--project", "")
 
 
 def main(
@@ -138,21 +142,18 @@ def main(
         argv, after = argv[:split], argv[split + 1 :]
     opts, passthrough = _parser().parse_known_args(argv)
     passthrough += shlex.split(opts.extra_args) + after
-    location = _location_args(passthrough)
-
-    lock_dir = _lock_dir(location, cwd)
-    if lock_dir is not None and not (lock_dir / "uv.lock").is_file():
-        print(f"{TITLE}: no uv.lock in {lock_dir}; nothing to audit.")
-        return 0
+    shared = _shared_args(passthrough)
 
     uv = environ.get("UV") or "uv"
-    # don't leak the Action's own `uv run` venv into the audited project
-    env = {k: v for k, v in environ.items() if k != "VIRTUAL_ENV"}
+    env = {k: v for k, v in environ.items() if k not in DROPPED_ENV}
     run = runner or _subprocess_runner(cwd)
     github = bool(environ.get("GITHUB_ACTIONS"))
 
     try:
-        findings, adverse = _check(uv, passthrough, location, run, env, Severity(opts.unfixed))
+        findings, adverse = _check(uv, passthrough, shared, run, env, Severity(opts.unfixed))
+    except NothingToAudit as exc:
+        print(f"{TITLE}: nothing to audit ({exc}).")
+        return 0
     except FileNotFoundError:
         print(f"{TITLE}: `{uv}` not found; install uv or put it on PATH.", file=sys.stderr)
         return 2
@@ -182,12 +183,16 @@ def main(
 def _check(
     uv: str,
     passthrough: Sequence[str],
-    location: Sequence[str],
+    shared: Sequence[str],
     run: Runner,
     env: Mapping[str, str],
     unfixed: Severity,
 ) -> tuple[list[Finding], tuple[object, ...]]:
     audit = run([uv, *AUDIT, *passthrough], env)
+    if audit.returncode != 0 and not audit.stdout.strip():
+        for line in audit.stderr.splitlines():
+            if any(m in line for m in NOTHING_TO_AUDIT):
+                raise NothingToAudit(line.removeprefix("error: ").strip())
     # uv audit exits 1 when it finds something; the JSON says what
     if audit.returncode not in (0, 1):
         raise UvFailed(f"`uv audit` exited {audit.returncode}:\n{audit.stderr}".rstrip())
@@ -197,7 +202,7 @@ def _check(
         raise SchemaError(f"{exc}\n{audit.stderr}".rstrip()) from None
 
     def dry_run(name: str, *extra: str) -> str:
-        result = run([uv, "lock", "--dry-run", "--upgrade-package", name, *extra, *location], env)
+        result = run([uv, *DRY_RUN, name, *extra, *shared], env)
         if result.returncode != 0:
             raise UvFailed(
                 f"`uv lock --dry-run --upgrade-package {name}` exited {result.returncode}:\n"

@@ -38,7 +38,7 @@ finding is reported, no other network call is made.
 | A fixed version is allowed now | fail |
 | A fix is blocked by something other than the cooldown (a pin) | fail |
 | No fix has been published | fail (`--unfixed warning` to soften) |
-| No `uv.lock` in the directory | skip |
+| No project or no `uv.lock` (as uv finds them) | skip |
 
 In GitHub Actions, messages are printed as `::warning`/`::error` annotations.
 `--verbose` prints one line per advisory. Other arguments go to `uv audit`,

@@ -139,7 +139,8 @@ def parse_audit(text: str) -> AuditReport:
 # versions on one side: `Update urllib3 v1.26.4 -> v2.6.3, v2.8.0`.
 _VERSIONS = r"v\S+(?:, v\S+)*"
 _CHANGE = re.compile(
-    rf"^(?P<verb>Update|Add|Remove) (?P<name>\S+) (?P<old>{_VERSIONS})(?: -> (?P<new>{_VERSIONS}))?$"
+    rf"^\s*(?P<verb>Update|Add|Remove) (?P<name>\S+) (?P<old>{_VERSIONS})(?: -> (?P<new>{_VERSIONS}))?\s*$",
+    re.MULTILINE,
 )
 
 
@@ -156,7 +157,9 @@ def reachable_versions(text: str, name: str, version: str) -> tuple[str, ...] | 
         if match and canonicalize_name(match["name"]) == want:
             lines.append(match)
     if not lines:
-        return None
+        if "No lockfile changes detected" in text or _CHANGE.search(text):
+            return None
+        raise SchemaError(f"uv lock --dry-run output not understood for {name}:\n{text}".rstrip())
 
     exact = [m for m in lines if version in _versions(m["old"])]
     if len(exact) == 1:
@@ -194,6 +197,13 @@ def relevant_fixes(v: Vulnerability) -> list[Version]:
     return sorted(f for f in map(Version, v.fix_versions) if f > current)
 
 
+def is_fixed(version: Version, fixes: Sequence[Version]) -> bool:
+    """At or past every fix, or past a fix on its own major.minor branch."""
+    return version >= max(fixes) or any(
+        f <= version and f.release[:2] == version.release[:2] for f in fixes
+    )
+
+
 def classify(
     v: Vulnerability,
     reachable: tuple[str, ...] | None,
@@ -221,11 +231,10 @@ def classify(
                 v,
             ),
         )
-    lowest = fixes[0]
     fix_text = _join([str(f) for f in fixes])
 
     def reaches(versions: tuple[str, ...] | None) -> list[str]:
-        return [r for r in versions or () if Version(r) >= lowest]
+        return [r for r in versions or () if is_fixed(Version(r), fixes)]
 
     hit = reaches(reachable)
     if hit:

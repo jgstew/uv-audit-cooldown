@@ -70,4 +70,4 @@ runs:
         INPUT_UNFIXED: ${{ inputs.unfixed }}
       run: |
         uv run --quiet --frozen --no-dev --project "$GITHUB_ACTION_PATH" \
-          uv-audit-cooldown --unfixed "$INPUT_UNFIXED" --extra-args "$INPUT_ARGS"
+          uv-audit-cooldown --unfixed "$INPUT_UNFIXED" --extra-args="$INPUT_ARGS"

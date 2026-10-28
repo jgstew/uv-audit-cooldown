@@ -170,6 +170,14 @@ def test_reachable_versions_ambiguous_is_an_error() -> None:
         reachable_versions(text, "numpy", "3.0.0")
 
 
+def test_reachable_versions_unrecognised_output_is_an_error() -> None:
+    # e.g. colour codes or new wording: never read as "already newest"
+    with pytest.raises(SchemaError):
+        reachable_versions(
+            "\x1b[32mUpdate\x1b[0m virtualenv v21.14.11 -> v21.14.12\n", "virtualenv", "21.14.11"
+        )
+
+
 def test_reachable_versions_removed_package_is_an_error() -> None:
     # nothing to compare against; must not silently fall through to a warning
     with pytest.raises(SchemaError):
@@ -249,6 +257,19 @@ def test_fix_on_an_older_branch_does_not_count() -> None:
     v = vuln(fixes=("2.0.6", "1.26.17"), version="2.0.0")
     finding = classify(v, ("2.0.3",), lambda: ("2.0.6",), unfixed=Severity.ERROR)
     assert finding.severity is Severity.WARNING
+
+
+def test_a_later_still_vulnerable_branch_is_not_a_fix() -> None:
+    # locked 1.26.4; fixed in 1.26.17 and 2.0.6. 2.0.0 is above 1.26.17 but still vulnerable.
+    v = vuln(fixes=("2.0.6", "1.26.17"), version="1.26.4")
+    finding = classify(v, ("2.0.0",), lambda: ("2.0.0",), unfixed=Severity.ERROR)
+    assert finding.kind is Kind.BLOCKED
+
+
+def test_a_fix_on_the_same_branch_counts() -> None:
+    v = vuln(fixes=("2.0.6", "1.26.17"), version="1.26.4")
+    finding = classify(v, ("1.26.18",), never_lifted, unfixed=Severity.ERROR)
+    assert finding.kind is Kind.FIX_ALLOWED
 
 
 def test_forked_resolution_reaching_fix_anywhere_is_an_error() -> None:

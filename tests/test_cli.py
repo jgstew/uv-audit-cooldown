@@ -72,6 +72,8 @@ def test_clean_audit_makes_no_other_call(project: Path, capsys: pytest.CaptureFi
         "--frozen",
         "--output-format",
         "json",
+        "--color",
+        "never",
     ]
     assert "no known vulnerabilities" in capsys.readouterr().out
 
@@ -81,12 +83,10 @@ def test_virtualenv_inside_cooldown_passes_with_a_warning(
 ) -> None:
     fake = FakeUv(audit_json("audit_virtualenv.json"))
     assert run([], fake, project) == 0
-    assert fake.calls[1] == ["uv", "lock", "--dry-run", "--upgrade-package", "virtualenv"]
+    lock = ["uv", "lock", "--dry-run", "--color", "never", "--upgrade-package"]
+    assert fake.calls[1] == [*lock, "virtualenv"]
     assert fake.calls[2] == [
-        "uv",
-        "lock",
-        "--dry-run",
-        "--upgrade-package",
+        *lock,
         "virtualenv",
         "--exclude-newer",
         "false",
@@ -184,6 +184,19 @@ def test_double_dash_separates_passthrough(project: Path) -> None:
     assert fake.calls[0][-2:] == ["--unfixed", "x"]
 
 
+def test_extra_args_single_flag(project: Path) -> None:
+    # the Action passes `--extra-args="$INPUT_ARGS"`; one flag must not look like an option
+    fake = FakeUv(audit_json("audit_virtualenv.json"))
+    run(["--extra-args=--no-dev"], fake, project)
+    assert fake.calls[0][-1] == "--no-dev"
+
+
+def test_config_options_go_to_both(project: Path) -> None:
+    fake = FakeUv(audit_json("audit_virtualenv.json"))
+    run(["--config-file", "uv.toml", "--no-config", "--no-dev"], fake, project)
+    assert fake.calls[1][-3:] == ["--config-file", "uv.toml", "--no-config"]
+
+
 def test_extra_args_string_is_shell_split(project: Path) -> None:
     fake = FakeUv(audit_json("audit_virtualenv.json"))
     run(["--extra-args", "--no-dev  --ignore 'GHSA-a b'"], fake, project)
@@ -210,20 +223,22 @@ def test_location_args_equals_form(tmp_path: Path) -> None:
     assert fake.calls[1][-1] == "--project=sub"
 
 
-def test_skips_without_uv_lock(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    (tmp_path / "pyproject.toml").write_text("[project]\nname = 'x'\n")
-    fake = FakeUv(audit_json("audit_virtualenv.json"))
+@pytest.mark.parametrize(
+    "result",
+    [
+        RunResult(
+            1, "", "error: Unable to find lockfile at `uv.lock`, but `--frozen` was provided.\n"
+        ),
+        RunResult(2, "", "error: No `pyproject.toml` found in current directory or any parent\n"),
+    ],
+)
+def test_skips_without_a_lock_or_project(
+    tmp_path: Path, result: RunResult, capsys: pytest.CaptureFixture[str]
+) -> None:
+    fake = FakeUv(result)
     assert run([], fake, tmp_path) == 0
-    assert fake.calls == []
-    assert "no uv.lock" in capsys.readouterr().out
-
-
-def test_skips_when_location_has_no_lock(tmp_path: Path) -> None:
-    (tmp_path / "uv.lock").write_text("")
-    (tmp_path / "sub").mkdir()
-    fake = FakeUv(audit_json("audit_virtualenv.json"))
-    assert run(["--directory", "sub"], fake, tmp_path) == 0
-    assert fake.calls == []
+    assert len(fake.calls) == 1
+    assert "nothing to audit" in capsys.readouterr().out
 
 
 def test_script_runs_without_uv_lock(tmp_path: Path) -> None:
@@ -274,9 +289,11 @@ def test_adverse_status_is_an_error(project: Path, capsys: pytest.CaptureFixture
 
 def test_uses_uv_from_env_and_drops_virtual_env(project: Path) -> None:
     fake = FakeUv(RunResult(0, audit_json("audit_clean.json"), ""))
-    run([], fake, project, {"UV": "/opt/uv", "VIRTUAL_ENV": "/x/.venv", "PATH": "/bin"})
+    env = {"UV": "/opt/uv", "VIRTUAL_ENV": "/x/.venv", "UV_FROZEN": "1", "UV_LOCKED": "1"}
+    run([], fake, project, {**env, "PATH": "/bin"})
     assert fake.calls[0][0] == "/opt/uv"
-    assert "VIRTUAL_ENV" not in fake.envs[0]
+    for key in ("VIRTUAL_ENV", "UV_FROZEN", "UV_LOCKED"):
+        assert key not in fake.envs[0]
     assert fake.envs[0]["PATH"] == "/bin"
 
 
