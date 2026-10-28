@@ -35,6 +35,9 @@ jobs:
         with:
           enable-cache: false
 
-      - uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
-        with:
-          extra_args: --color=always --all-files --hook-stage manual
+      # not pre-commit/action: it uses an unpinned actions/cache, which the
+      # repo's SHA-pinning policy rejects
+      - name: pre-commit
+        run: |
+          uvx --exclude-newer "7 days" pre-commit run --color=always --all-files \
+            --hook-stage manual --show-diff-on-failure

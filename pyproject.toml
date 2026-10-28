@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "uv-audit-cooldown"
-version = "1.0.1"
+version = "1.0.2"
 description = "Cooldown-aware `uv audit`: warns while a fix is inside your `exclude-newer` window, fails once it isn't."
 readme = "README.md"
 license = "MIT"
