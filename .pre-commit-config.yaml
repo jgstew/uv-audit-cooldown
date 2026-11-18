@@ -108,7 +108,7 @@ repos:
         stages: [pre-push, manual]
 
   - repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 02747c5f318750b3c3ccfc1d83dd787b35d6c078 # 0.13.3
+    rev: b9d5257d60a86c20fd9a3919d548e08ba5ab905b # 0.13.8
     hooks:
       - id: uv-lock
 
